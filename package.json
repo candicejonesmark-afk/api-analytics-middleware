@@ -4,7 +4,7 @@
   "description": "Node.js/Express middleware for rate limiting, usage tracking, and Stripe metered billing integration",
   "main": "src/index.js",
   "scripts": {
-    "test": "node test/smoke.js",
+    "test": "node test/smoke.js && node test/usage.test.js",
     "example": "node examples/basic.js"
   },
   "keywords": [

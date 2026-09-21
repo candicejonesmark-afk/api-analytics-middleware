@@ -38,7 +38,7 @@ function createAnalyticsMiddleware(opts = {}) {
    * Express middleware: identifies the caller by API key, enforces rate limit,
    * and records each request against the key.
    */
-  function middleware(req, res, next) {
+  async function middleware(req, res, next) {
     const apiKey = req.headers[apiKeyHeader];
     if (!apiKey) {
       res.status(401).json({ error: 'Missing API key', code: 'MISSING_API_KEY' });
@@ -68,12 +68,16 @@ function createAnalyticsMiddleware(opts = {}) {
     }
 
     // Track usage
-    usageTracker.recordHit(apiKey, req.path || req.url, 1);
+    usageTracker.recordHit(apiKey, req.path || req.url, 1).catch(() => {});
 
     // Attach usage headers to response
-    const usage = usageTracker.getUsage(apiKey);
-    res.setHeader('X-Usage-Remaining', Math.max(0, limit - usage.count));
-    res.setHeader('X-Usage-Limit', limit);
+    try {
+      const usage = await usageTracker.getUsage(apiKey);
+      res.setHeader('X-Usage-Remaining', Math.max(0, limit - (usage.count || usage.totalHits || 0)));
+      res.setHeader('X-Usage-Limit', limit);
+    } catch {
+      // If we can't read usage, still continue — don't block the request
+    }
 
     next();
   }
