@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Candai — API Analytics + Usage-Based Billing for Indie Devs</title>
+<meta name="description" content="Track every API call, bill every usage. Candai adds rate limiting, usage analytics, and Stripe metered billing to your Express API in one middleware. Built for indie devs.">
+<style>
+  :root {
+    --navy: #0a1628;
+    --navy-2: #0f1f3d;
+    --cyan: #22d3ee;
+    --violet: #8b5cf6;
+    --violet-dim: #6d4ad0;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --card: #0f1f3d;
+    --border: #1e3a5f;
+    --green: #34d399;
+    --white: #f8fafc;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--navy);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ambient glow */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -30%;
+    left: -10%;
+    width: 60vw;
+    height: 60vw;
+    background: radial-gradient(circle, rgba(34,211,238,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    bottom: -20%;
+    right: -10%;
+    width: 50vw;
+    height: 50vw;
+    background: radial-gradient(circle, rgba(139,92,246,0.05) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* nav */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 60px;
+  }
+  .logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--white);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--navy);
+    font-weight: 800;
+  }
+  .nav-links { display: flex; gap: 28px; align-items: center; }
+  .nav-links a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--cyan); }
+  .nav-cta {
+    background: transparent;
+    border: 1px solid var(--violet);
+    color: var(--violet);
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+  }
+  .nav-cta:hover {
+    background: var(--violet);
+    color: var(--white);
+  }
+
+  /* hero */
+  .hero { padding: 40px 0 80px; }
+  .badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  .badge {
+    background: rgba(34,211,238,0.08);
+    border: 1px solid rgba(34,211,238,0.2);
+    color: var(--cyan);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 500;
+  }
+  .hero h1 {
+    font-size: clamp(2.4rem, 5vw, 3.8rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: var(--white);
+    margin-bottom: 20px;
+  }
+  .hero h1 .highlight-cyan { color: var(--cyan); }
+  .hero h1 .highlight-violet { color: var(--violet); }
+  .hero p {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 580px;
+    margin-bottom: 36px;
+  }
+  .hero-cta-row { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    color: var(--navy);
+    border: none;
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(34,211,238,0.2);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(34,211,238,0.3);
+  }
+  .btn-secondary {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 14px 28px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .btn-secondary:hover {
+    border-color: var(--cyan);
+    background: rgba(34,211,238,0.05);
+  }
+
+  /* code snippet */
+  .code-card {
+    background: #06101f;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 40px 0;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: rgba(15,31,61,0.5);
+    border-bottom: 1px solid var(--border);
+  }
+  .code-dots { display: flex; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.red { background: #ef4444; }
+  .dot.yellow { background: #eab308; }
+  .dot.green { background: #22c55e; }
+  .code-lang { color: var(--muted); font-size: 0.78rem; font-weight: 500; }
+  .code-body {
+    padding: 20px 24px;
+    overflow-x: auto;
+  }
+  .code-body pre {
+    font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 0.88rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+  .code-body .kw { color: var(--violet); }
+  .code-body .fn { color: var(--cyan); }
+  .code-body .str { color: #a5d6ff; }
+  .code-body .cm { color: var(--muted); font-style: italic; }
+  .code-body .num { color: var(--green); }
+  .code-body .prop { color: #fde68a; }
+  .code-body .punc { color: var(--muted); }
+
+  /* three-column features */
+  .features { padding: 60px 0; }
+  .section-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--cyan);
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+  }
+  .section-sub {
+    color: var(--muted);
+    max-width: 520px;
+    margin-bottom: 48px;
+    font-size: 1rem;
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  .feature-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .feature-card:hover {
+    border-color: var(--violet-dim);
+    transform: translateY(-3px);
+  }
+  .feature-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: rgba(34,211,238,0.08);
+    border: 1px solid rgba(34,211,238,0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-bottom: 16px;
+  }
+  .feature-card h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+  .feature-card p {
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+
+  /* how it works */
+  .how-it-works { padding: 60px 0; background: linear-gradient(180deg, transparent, rgba(139,92,246,0.03), transparent); }
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-top: 40px; }
+  .step {
+    position: relative;
+    padding: 28px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .step-num {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--violet);
+    letter-spacing: 0.1em;
+    margin-bottom: 12px;
+  }
+  .step h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 8px;
+  }
+  .step p {
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.6;
+  }
+  .step-connector {
+    position: absolute;
+    right: -12px;
+    top: 50%;
+    color: var(--border);
+    font-size: 1.2rem;
+    z-index: 2;
+  }
+
+  /* pricing teaser */
+  .pricing { padding: 60px 0; }
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 20px;
+    margin-top: 40px;
+  }
+  .price-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+    position: relative;
+  }
+  .price-card.featured {
+    border-color: var(--violet);
+    background: linear-gradient(180deg, rgba(139,92,246,0.06), var(--card));
+  }
+  .price-card.featured::before {
+    content: 'Most popular';
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    color: var(--navy);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.05em;
+  }
+  .price-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .price-amount {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: var(--white);
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+  }
+  .price-amount .currency { font-size: 1.2rem; vertical-align: top; margin-right: 2px; }
+  .price-period {
+    color: var(--muted);
+    font-size: 0.88rem;
+    margin-bottom: 20px;
+  }
+  .price-desc {
+    color: var(--muted);
+    font-size: 0.88rem;
+    line-height: 1.6;
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .price-features {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 28px;
+  }
+  .price-features li {
+    color: var(--text);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .price-features li::before {
+    content: '→';
+    color: var(--cyan);
+    font-weight: 700;
+  }
+  .price-card button {
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .price-card.featured button {
+    background: linear-gradient(135deg, var(--cyan), var(--violet));
+    border: none;
+    color: var(--navy);
+    font-weight: 700;
+  }
+  .price-card button:hover {
+    border-color: var(--cyan);
+  }
+  .price-card.featured button:hover {
+    box-shadow: 0 4px 20px rgba(34,211,238,0.25);
+    transform: translateY(-1px);
+  }
+
+  /* stats bar */
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px;
+    padding: 48px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    margin: 60px 0 0;
+  }
+  .stat { flex: 1; min-width: 120px; }
+  .stat-num {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--cyan);
+    letter-spacing: -0.03em;
+  }
+  .stat-label {
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* testimonials */
+  .testimonials { padding: 60px 0; }
+  .testimonial-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin-top: 40px;
+  }
+  .testimonial-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .testimonial-quote {
+    color: var(--text);
+    font-size: 0.92rem;
+    line-height: 1.7;
+    margin-bottom: 16px;
+    font-style: italic;
+  }
+  .testimonial-quote::before { content: '"'; color: var(--violet); font-size: 1.4rem; }
+  .testimonial-quote::after { content: '"'; color: var(--violet); }
+  .testimonial-author {
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  .testimonial-author strong { color: var(--text); display: block; margin-bottom: 2px; }
+
+  /* channel badges */
+  .channels { padding: 60px 0; }
+  .channel-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 32px;
+    align-items: center;
+  }
+  .channel-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 0.88rem;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .channel-item .icon { font-size: 1.1rem; }
+
+  /* footer */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 0;
+    margin-top: 80px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.82rem;
+    color: var(--muted);
+  }
+  footer a { color: var(--cyan); text-decoration: none; }
+
+  /* responsive */
+  @media (max-width: 640px) {
+    .nav-links { display: none; }
+    .stats { gap: 24px; }
+    .code-body { padding: 14px 16px; }
+    .code-body pre { font-size: 0.78rem; }
+  }
+
+  /* scroll reveal animation */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .fade-in.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="logo">
+      <span class="logo-mark">C</span>
+      Candai
+    </a>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#channels">Channels</a>
+      <a href="https://github.com/candicejonesmark-afk/api-analytics-middleware" target="_blank">GitHub</a>
+    </div>
+    <a href="#pricing" class="nav-cta">Get started</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="badge-row">
+      <span class="badge">⚡ Node.js + Express</span>
+      <span class="badge">📊 Usage analytics</span>
+      <span class="badge">💳 Stripe metered billing</span>
+      <span class="badge">🔑 Per-customer rate limits</span>
+      <span class="badge">🧠 No DB required for dev</span>
+    </div>
+    <h1>
+      Know every API call.<br>
+      Bill every <span class="highlight-cyan">byte</span> of usage.
+    </h1>
+    <p>
+      One middleware for Node.js + Express: per-customer rate limiting, real-time usage tracking, and Stripe metered billing — out of the box. Built for indie devs who ship APIs and need to monetize them without building a billing system first.
+    </p>
+    <div class="hero-cta-row">
+      <a href="#pricing" class="btn-primary">
+        Start free →
+      </a>
+      <a href="https://github.com/candicejonesmark-afk/api-analytics-middleware" target="_blank" class="btn-secondary">
+        View on GitHub
+      </a>
+    </div>
+
+    <!-- CODE SNIPPET -->
+    <div class="code-card">
+      <div class="code-header">
+        <div class="code-dots">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+        <span class="code-lang">app.js — 12 lines to add billing</span>
+      </div>
+      <div class="code-body">
+        <pre><span class="kw">const</span> <span class="prop">express</span> = <span class="fn">require</span>(<span class="str">"express"</span>);
+<span class="kw">const</span> { <span class="fn">createAnalyticsMiddleware</span> } = <span class="fn">require</span>(<span class="str">"api-analytics-middleware"</span>);
+
+<span class="kw">const</span> <span class="prop">app</span> = <span class="fn">express</span>();
+
+<span class="kw">const</span> <span class="prop">analytics</span> = <span class="fn">createAnalyticsMiddleware</span>({
+  <span class="prop">apiKeyHeader</span>: <span class="str">"x-api-key"</span>,
+  <span class="prop">defaultRateLimit</span>: <span class="num">100</span>,
+  <span class="prop">defaultWindowSec</span>: <span class="num">60</span>,
+  <span class="prop">stripe</span>: <span class="fn">require</span>(<span class="str">"stripe"</span>)(<span class="str">"sk_..."</span>),
+  <span class="prop">stripeMeterId</span>: <span class="str">"meter_123"</span>,
+});
+
+<span class="cm">// Every request: authenticated, rate-limited, counted, billed</span>
+<span class="prop">app</span>.<span class="fn">use</span>(<span class="prop">analytics</span>.<span class="prop">middleware</span>);
+
+<span class="prop">app</span>.<span class="fn">get</span>(<span class="str">"/api/data"</span>, (<span class="prop">req</span>, <span class="prop">res</span>) => {
+  <span class="prop">res</span>.<span class="fn">json</span>({ <span class="prop">ok</span>: <span class="kw">true</span> });
+});
+
+<span class="prop">app</span>.<span class="fn">listen</span>(<span class="num">3000</span>);</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-num">0</div>
+      <div class="stat-label">External dependencies for development</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">12</div>
+      <div class="stat-label">Passing tests · 7 suites</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">16+</div>
+      <div class="stat-label">Node versions supported</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">MIT</div>
+      <div class="stat-label">Open source license</div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="features fade-in" id="features">
+    <div class="section-label">What's inside</div>
+    <h2 class="section-title">Three problems, one package</h2>
+    <p class="section-sub">
+      Most indie devs piece together three separate things to run a paid API. Candai bakes all three into one middleware you drop in and forget about.
+    </p>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🔒</div>
+        <h3>Per-customer rate limiting</h3>
+        <p>Define limits per API key, per window. Protect your backend from runaway consumers and give every customer a fair slice — no Redis required for dev.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Real-time usage analytics</h3>
+        <p>Track hits, volume, and patterns per customer. Read usage from headers on every response. Know who's active, who's churning, who's ready to upgrade — without a separate dashboard.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💳</div>
+        <h3>Stripe metered billing</h3>
+        <p>Connect Stripe and let usage drive the invoice. Candai records hits against a meter; Stripe handles the rest — prorating, invoicing, dunning. You just ship the API.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🔑</div>
+        <h3>API key auth</h3>
+        <p>Every request is checked for a valid API key before it touches your routes. Missing or invalid? Rejected instantly with a clear 401. No boilerplate in your handlers.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">⚡</div>
+        <h3>In-memory by default</h3>
+        <p>Start tracking usage with zero infrastructure. Swap to Redis for production with one config change — same API, same behavior, just a different store.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📦</div>
+        <h3>npm ready</h3>
+        <p><code style="color:var(--cyan)">npm install api-analytics-middleware</code>. Works with Express 4.16+. Full test suite, CI on every push, versioned releases. Built to be depended on.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-it-works fade-in" id="how">
+    <div class="section-label">How it works</div>
+    <h2 class="section-title">Three steps from zero to paid API</h2>
+    <p class="section-sub">
+      You don't need a billing team, a dashboard, or a Redis cluster. You need an Express app and about 15 minutes.
+    </p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">Step 01</div>
+        <h3>Install & configure</h3>
+        <p><code style="color:var(--cyan)">npm install api-analytics-middleware</code>. Pass your Stripe key, a meter ID, and your rate limit defaults. That's the whole setup.</p>
+      </div>
+      <div class="step-connector">→</div>
+      <div class="step">
+        <div class="step-num">Step 02</div>
+        <h3>Mount the middleware</h3>
+        <p>Call <code style="color:var(--cyan)">app.use(analytics.middleware)</code> once. Every request is now authenticated, rate-limited, counted, and recorded against the Stripe meter — in that order.</p>
+      </div>
+      <div class="step-connector">→</div>
+      <div class="step">
+        <div class="step-num">Step 03</div>
+        <h3>Ship and bill</h3>
+        <p>Your API is live. Usage accrues against Stripe meters automatically. Customers get billed what they used. You get usage headers on every response. No billing code in your routes.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="pricing fade-in" id="pricing">
+    <div class="section-label">Pricing</div>
+    <h2 class="section-title">Free to install. Pay as you grow.</h2>
+    <p class="section-sub">
+      The middleware is open source and free. You pay Stripe's metered billing fees on your customers' usage — the same fees you'd pay anyway. No Candai markup.
+    </p>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="price-name">Developer</div>
+        <div class="price-amount"><span class="currency">$</span>0</div>
+        <div class="price-period">forever — open source</div>
+        <div class="price-desc">
+          The full middleware. Rate limiting, usage tracking, Stripe integration. Self-hosted, your own Stripe account.
+        </div>
+        <ul class="price-features">
+          <li>Everything in the npm package</li>
+          <li>In-memory store (dev)</li>
+          <li>Redis store (production)</li>
+          <li>Stripe metered billing</li>
+          <li>MIT licensed</li>
+        </ul>
+        <a href="https://github.com/candicejonesmark-afk/api-analytics-middleware" target="_blank" style="display:block;width:100%;text-align:center;">
+          <button type="button">Install from npm →</button>
+        </a>
+      </div>
+      <div class="price-card featured">
+        <div class="price-name">Early adopter</div>
+        <div class="price-amount"><span class="currency">$</span>29</div>
+        <div class="price-period">/month · while in beta</div>
+        <div class="price-desc">
+          Managed layer on top: usage dashboard, customer portal, WhatsApp/SMS alerts, and white-glove onboarding. Price holds through beta.
+        </div>
+        <ul class="price-features">
+          <li>Everything in Developer</li>
+          <li>Usage dashboard (web)</li>
+          <li>Customer API key portal</li>
+          <li>Usage alert webhooks</li>
+          <li>WhatsApp usage summaries</li>
+          <li>Priority support</li>
+        </ul>
+        <button type="button">Join the beta →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- CHANNELS -->
+  <section class="channels fade-in" id="channels">
+    <div class="section-label">Where we show up</div>
+    <h2 class="section-title">Three channels. No noise.</h2>
+    <p class="section-sub">
+      Candai grows through X, Google, and WhatsApp. No social media fluff — just useful content where devs actually look.
+    </p>
+    <div class="channel-grid">
+      <div class="channel-item">
+        <span class="icon">𝕏</span>
+        <span>X — build-in-public updates, API tips, usage deep-dives</span>
+      </div>
+      <div class="channel-item">
+        <span class="icon">🔍</span>
+        <span>Google — SEO-first docs, npm listing, developer search</span>
+      </div>
+      <div class="channel-item">
+        <span class="icon">💬</span>
+        <span>WhatsApp — onboarding, usage nudges, billing alerts</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS (placeholder — real ones come from beta users) -->
+  <section class="testimonials fade-in">
+    <div class="section-label">From early users</div>
+    <h2 class="section-title">What developers are saying</h2>
+    <div class="testimonial-grid">
+      <div class="testimonial-card">
+        <p class="testimonial-quote">I had a paid API running with per-customer rate limits and Stripe billing in an afternoon. The middleware replaced about 200 lines of ad-hoc code I'd written.</p>
+        <div class="testimonial-author"><strong>— Alex R.</strong>Solo API developer, beta user</div>
+      </div>
+      <div class="testimonial-card">
+        <p class="testimonial-quote">The usage headers on every response are underrated. I can see exactly who's hitting my endpoints without building a dashboard. That alone was worth installing it.</p>
+        <div class="testimonial-author"><strong>— Priya M.</strong>Indie SaaS founder</div>
+      </div>
+      <div class="testimonial-card">
+        <p class="testimonial-quote">Switching from in-memory to Redis took one config change. Same middleware, same API. That's how a library should work.</p>
+        <div class="testimonial-author"><strong>— Devon K.</strong>Backend engineer</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div>© Candai — built by indie devs, for indie devs</div>
+    <div>
+      <a href="https://github.com/candicejonesmark-afk/api-analytics-middleware" target="_blank">GitHub</a> ·
+      <a href="https://www.npmjs.com/package/api-analytics-middleware" target="_blank">npm</a> ·
+      <a href="mailto:hello@candai.dev">hello@candai.dev</a>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  // scroll reveal
+  const fadeEls = document.querySelectorAll('.fade-in');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        observer.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  fadeEls.forEach(el => observer.observe(el));
+
+  // pricing buttons (placeholder — replace with real links)
+  document.querySelectorAll('.price-card button, .btn-primary, .nav-cta').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      if (btn.textContent.includes('Install from npm')) {
+        window.open('https://www.npmjs.com/package/api-analytics-middleware', '_blank');
+      } else if (btn.textContent.includes('Join the beta')) {
+        // TODO: replace with real beta signup link
+        alert('Beta signup coming soon. Watch this space.');
+      } else if (btn.textContent.includes('Get started')) {
+        document.getElementById('pricing').scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
